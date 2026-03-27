@@ -150,12 +150,12 @@ export class CourseManagementComponent {
 
   // Learning Path Management
   createEmptyPath(): LearningPath {
-    return { 
-      id: Date.now(), 
-      title: '', 
-      description: '', 
-      courses: [], 
-      progress: 0, 
+    return {
+      id: Date.now(),
+      title: '',
+      description: '',
+      courses: [],
+      progress: 0,
       status: 'Not Started',
       estimatedHours: '',
       image: ''
@@ -260,7 +260,7 @@ export class CourseManagementComponent {
   }
 
   @HostListener('document:keydown.escape', ['$event'])
-  onEscapeKey(event: KeyboardEvent) {
+  onEscapeKey(event: Event) {
     if (this.showCourseForm()) {
       this.cancelCourse();
     }

@@ -90,11 +90,11 @@ export class RegisterComponent implements OnInit {
     document.body.classList.remove('no-scroll');
   }
 
-  @HostListener('document:keydown.escape', ['$event'])
+  @HostListener('document:keydown.escape')
   onEscKey() {
     if (this.showPrivacyModal) this.closePrivacyPolicy();
   }
-  
+
   // Method to navigate back to login page
   goToLogin() {
     this.router.navigate(['/login']);

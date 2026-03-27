@@ -1,112 +1,97 @@
 import { Injectable } from '@angular/core';
-import { Observable, of, tap } from 'rxjs';
+import { Observable, from, tap, map, catchError, throwError } from 'rxjs';
 import { Usuario } from '../models/usuario.model';
+import { SupabaseService } from './supabase/supabase.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
 
-  private mockUsers: Usuario[] = [
-    { nome: 'admin', senha: '123456', email: 'admin@sistema.com', perfil: 'admin' },
-    { nome: 'usuario', senha: '123456', email: 'usuario@sistema.com', perfil: 'user' },
-    // Usuários de teste com diferentes departamentos
-    { nome: 'engenheiro', senha: '123456', email: 'engenheiro@sistema.com', perfil: 'user', department: 'Engineering' },
-    { nome: 'vendedor', senha: '123456', email: 'vendedor@sistema.com', perfil: 'user', department: 'Sales' },
-    { nome: 'rh', senha: '123456', email: 'rh@sistema.com', perfil: 'user', department: 'HR' },
-    { nome: 'ti', senha: '123456', email: 'ti@sistema.com', perfil: 'user', department: 'IT' },
-    { nome: 'financeiro', senha: '123456', email: 'financeiro@sistema.com', perfil: 'user', department: 'Finance' },
-    { nome: 'marketing', senha: '123456', email: 'marketing@sistema.com', perfil: 'user', department: 'Marketing' }
-  ];
+  constructor(private supabaseService: SupabaseService) {}
 
-  constructor() {
-    // 🔹 Load users from localStorage and merge with mock users
-    const storedUsers = localStorage.getItem('users');
-    if (storedUsers) {
-      const parsed = JSON.parse(storedUsers);
-      this.mockUsers = [...this.mockUsers, ...parsed.filter((u: any) => !this.mockUsers.some(m => m.email === u.email))];
-    } else {
-      localStorage.setItem('users', JSON.stringify(this.mockUsers));
-    }
-  }
-
-  // 🔹 LOGIN – now checks mock + users saved in localStorage
+  // 🔹 LOGIN – using Supabase authentication
   login(usuario: Pick<Usuario, 'nome' | 'senha'>): Observable<Usuario> {
-    return new Observable<Usuario>(observer => {
-      setTimeout(() => {
-        const users = JSON.parse(localStorage.getItem('users') || '[]');
-
-        // Check all users (mock + local)
-        const allUsers = [...this.mockUsers, ...users];
-        const user = allUsers.find(u =>
-          (u.nome === usuario.nome || u.email === usuario.nome) &&
-          u.senha === usuario.senha
-        );
-
-        if (user) {
-          const usuarioLogado: Usuario = {
-            nome: user.nome,
-            senha: '',
-            email: user.email,
-            perfil: user.perfil,
-            department: user.department
-          };
-
-          localStorage.setItem('isLoggedIn', 'true');
-          localStorage.setItem('usuario', JSON.stringify(usuarioLogado));
-
-          observer.next(usuarioLogado);
-          observer.complete();
-        } else {
-          observer.error({ status: 401, message: 'Invalid credentials. Check username and password.' });
+    return from(
+      this.supabaseService.supabase.auth.signInWithPassword({
+        email: usuario.nome,
+        password: usuario.senha
+      })
+    ).pipe(
+      map((response: any) => {
+        if (response.error) {
+          throw response.error;
         }
-      }, 500);
-    }).pipe(
+
+        // Get user data from Supabase
+        const user = response.data.user;
+        const usuarioLogado: Usuario = {
+          id: user.id,
+          nome: user.user_metadata?.nome || user.email?.split('@')[0] || 'User',
+          senha: '',
+          email: user.email || '',
+          perfil: user.user_metadata?.perfil || 'user',
+          department: user.user_metadata?.department
+        };
+
+        // Store in localStorage for session management
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('usuario', JSON.stringify(usuarioLogado));
+        localStorage.setItem('supabase_session', JSON.stringify(response.data.session));
+
+        return usuarioLogado;
+      }),
+      catchError((error) => {
+        console.error('Login error:', error);
+        return throwError(() => ({ status: 401, message: 'Invalid credentials. Check username and password.' }));
+      }),
       tap((response) => console.log("✅ Login successful!", response))
     );
   }
 
-  // 🔹 REGISTER – creates user and saves correctly in localStorage
+  // 🔹 REGISTER – creates user in Supabase
   register(userData: { nome: string, email: string, senha: string, department?: string }): Observable<Usuario> {
-    return new Observable<Usuario>(observer => {
-      setTimeout(() => {
-        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-
-        const existingUser = storedUsers.find((u: Usuario) =>
-          u.email === userData.email || u.nome === userData.nome
-        );
-
-        if (existingUser) {
-          observer.error({ status: 409, message: 'User already exists.' });
-          return;
+    return from(
+      this.supabaseService.supabase.auth.signUp({
+        email: userData.email,
+        password: userData.senha,
+        options: {
+          data: {
+            nome: userData.nome,
+            perfil: 'user',
+            department: userData.department
+          }
+        }
+      })
+    ).pipe(
+      map((response: any) => {
+        if (response.error) {
+          throw response.error;
         }
 
-        const newUser: Usuario = {
-          nome: userData.nome,
-          senha: userData.senha,
-          email: userData.email,
-          perfil: 'user',
-          department: userData.department
-        };
-
-        storedUsers.push(newUser);
-        localStorage.setItem('users', JSON.stringify(storedUsers));
-
+        const user = response.data.user;
         const usuarioLogado: Usuario = {
-          nome: newUser.nome,
+          id: user.id,
+          nome: user.user_metadata?.nome || userData.nome,
           senha: '',
-          email: newUser.email,
-          perfil: newUser.perfil,
-          department: newUser.department
+          email: user.email || userData.email,
+          perfil: user.user_metadata?.perfil || 'user',
+          department: user.user_metadata?.department || userData.department
         };
 
+        // Store in localStorage
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('usuario', JSON.stringify(usuarioLogado));
+        if (response.data.session) {
+          localStorage.setItem('supabase_session', JSON.stringify(response.data.session));
+        }
 
-        observer.next(usuarioLogado);
-        observer.complete();
-      }, 500);
-    }).pipe(
+        return usuarioLogado;
+      }),
+      catchError((error) => {
+        console.error('Registration error:', error);
+        return throwError(() => ({ status: 409, message: 'User already exists or registration failed.' }));
+      }),
       tap((response) => console.log("✅ Registration and automatic login completed!", response))
     );
   }
@@ -129,8 +114,29 @@ export class AuthService {
   }
 
   // 🔹 Logout
-  logout(): void {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('usuario');
+  logout(): Observable<void> {
+    return from(
+      this.supabaseService.supabase.auth.signOut()
+    ).pipe(
+      map(() => {
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('usuario');
+        localStorage.removeItem('supabase_session');
+      }),
+      catchError((error) => {
+        console.error('Logout error:', error);
+        // Even if Supabase logout fails, clear local storage
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('usuario');
+        localStorage.removeItem('supabase_session');
+        return throwError(() => error);
+      })
+    );
+  }
+
+  // 🔹 Get current Supabase session
+  getCurrentSession() {
+    const sessionData = localStorage.getItem('supabase_session');
+    return sessionData ? JSON.parse(sessionData) : null;
   }
 }

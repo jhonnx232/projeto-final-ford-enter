@@ -27,14 +27,22 @@ export class LayoutComponent implements OnInit {
     // Get current user data
     this.currentUser = this.authService.getCurrentUser();
     this.isAdmin = this.authService.isAdmin();
-    
+
     // Check if mobile on init
     this.checkIsMobile();
   }
 
   logout() {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    this.authService.logout().subscribe({
+      next: () => {
+        this.router.navigate(['/login']);
+      },
+      error: (error) => {
+        console.error('Logout error:', error);
+        // Even if logout fails, navigate to login
+        this.router.navigate(['/login']);
+      }
+    });
   }
 
   toggleSidebar() {
@@ -59,14 +67,14 @@ export class LayoutComponent implements OnInit {
   onDocumentClick(event: Event) {
     const sidebar = document.querySelector('.sidebar');
     const toggleButton = document.querySelector('.mobile-menu-toggle');
-    
+
     if (this.isMobile && this.isSidebarOpen) {
       // Check if click is outside sidebar and toggle button
-      if (sidebar && !sidebar.contains(event.target as Node) && 
+      if (sidebar && !sidebar.contains(event.target as Node) &&
           toggleButton && !toggleButton.contains(event.target as Node)) {
         this.isSidebarOpen = false;
       }
-      
+
       // If toggle button is not available, just check sidebar
       if (!toggleButton && sidebar && !sidebar.contains(event.target as Node)) {
         this.isSidebarOpen = false;

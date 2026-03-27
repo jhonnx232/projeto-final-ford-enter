@@ -1,4 +1,6 @@
 import { Injectable, signal } from '@angular/core';
+import { Observable, from, map, catchError, throwError } from 'rxjs';
+import { SupabaseService } from './supabase/supabase.service';
 import { ImageUtils } from '../utils/image.utils';
 
 export interface Training {
@@ -50,11 +52,117 @@ export interface Course {
   providedIn: 'root'
 })
 export class TrainingService {
+
+  constructor(private supabaseService: SupabaseService) {
+    this.syncWithSupabase();
+  }
+
   trainings = signal<Training[]>([
     { id: 1, title: 'Workplace Safety', description: 'Basic safety procedures.', duration: '2h', image: ImageUtils.generatePlaceholderImage('Workplace Safety', 'Safety'), status: 'Completed' },
     { id: 2, title: 'Corporate Compliance', description: 'Company rules.', duration: '1.5h', image: ImageUtils.generatePlaceholderImage('Corporate Compliance', 'Compliance'), status: 'In Progress' },
     { id: 3, title: 'Leadership Essentials', description: 'Team motivation.', duration: '3h', image: ImageUtils.generatePlaceholderImage('Leadership Essentials', 'Leadership'), status: 'Not Started' }
   ]);
+
+  private syncWithSupabase() {
+    this.loadCoursesFromSupabase().subscribe({
+      next: courses => {
+        if (courses && courses.length > 0) {
+          this.courses.set(courses);
+        }
+      },
+      error: error => {
+        console.warn('Could not load courses from Supabase, using fallback data.', error);
+      }
+    });
+
+    this.loadPathsFromSupabase().subscribe({
+      next: paths => {
+        if (paths && paths.length > 0) {
+          this.paths.set(paths);
+        }
+      },
+      error: error => {
+        console.warn('Could not load learning paths from Supabase, using fallback data.', error);
+      }
+    });
+
+    this.loadTrainingsFromSupabase().subscribe({
+      next: trainings => {
+        if (trainings && trainings.length > 0) {
+          this.trainings.set(trainings);
+        }
+      },
+      error: error => {
+        console.warn('Could not load trainings from Supabase, using fallback data.', error);
+      }
+    });
+  }
+
+  // Method to fetch trainings from Supabase
+  loadTrainingsFromSupabase(): Observable<Training[]> {
+    return from(
+      this.supabaseService.supabase
+        .from('trainings')
+        .select('*')
+    ).pipe(
+      map((response: any) => {
+        if (response.error) {
+          throw response.error;
+        }
+        return response.data || [];
+      }),
+      catchError((error) => {
+        console.error('Error fetching trainings from Supabase:', error);
+        return throwError(() => error);
+      })
+    );
+  }
+
+  loadCoursesFromSupabase(): Observable<Course[]> {
+    return from(
+      this.supabaseService.supabase
+        .from('courses')
+        .select('*, course_modules(*)')
+    ).pipe(
+      map((response: any) => {
+        if (response.error) {
+          throw response.error;
+        }
+        const courses: Course[] = (response.data || []).map((course: any) => ({
+          ...course,
+          courseModules: course.course_modules || []
+        }));
+        return courses;
+      }),
+      catchError((error) => {
+        console.error('Error fetching courses from Supabase:', error);
+        return throwError(() => error);
+      })
+    );
+  }
+
+  loadPathsFromSupabase(): Observable<LearningPath[]> {
+    return from(
+      this.supabaseService.supabase
+        .from('learning_paths')
+        .select('*, courses(*)')
+    ).pipe(
+      map((response: any) => {
+        if (response.error) {
+          throw response.error;
+        }
+        const paths: LearningPath[] = (response.data || []).map((path: any) => ({
+          ...path,
+          courses: path.courses || []
+        }));
+        return paths;
+      }),
+      catchError((error) => {
+        console.error('Error fetching learning paths from Supabase:', error);
+        return throwError(() => error);
+      })
+    );
+  }
 
   paths = signal<LearningPath[]>([
     {
@@ -316,15 +424,10 @@ export class TrainingService {
     // Semester review and planning session (removed from Technical)
   ]);
 
-  constructor() {
-    // Populate paths with courses after initialization
-    this.populatePathsWithCourses();
-  }
-
   private populatePathsWithCourses() {
     // This is a simplified example - in a real app, this would come from a backend
     const allCourses = this.getCourses();
-    
+
     // For demo purposes, let's associate some courses with paths
     // In a real application, this mapping would come from the backend
     this.paths.update(paths => paths.map(path => {
@@ -332,55 +435,55 @@ export class TrainingService {
       if (path.courses && path.courses.length > 0) {
         return path;
       }
-      
+
       // Add some courses to each path based on theme or other criteria
       switch(path.id) {
         case 1: // Onboarding Path
           return {
             ...path,
-            courses: allCourses.filter(c => 
+            courses: allCourses.filter(c =>
               c.theme === 'Safety' || c.theme === 'Compliance'
             ).slice(0, 3)
           };
         case 2: // Sales Training
           return {
             ...path,
-            courses: allCourses.filter(c => 
+            courses: allCourses.filter(c =>
               c.theme === 'Soft Skills'
             ).slice(0, 2)
           };
         case 3: // Leadership Development
           return {
             ...path,
-            courses: allCourses.filter(c => 
+            courses: allCourses.filter(c =>
               c.theme === 'Leadership'
             ).slice(0, 3)
           };
         case 4: // Technical Skills
           return {
             ...path,
-            courses: allCourses.filter(c => 
+            courses: allCourses.filter(c =>
               c.theme === 'Technical'
             ).slice(0, 4)
           };
         case 5: // Compliance and Ethics
           return {
             ...path,
-            courses: allCourses.filter(c => 
+            courses: allCourses.filter(c =>
               c.theme === 'Compliance'
             )
           };
         case 6: // Project Management
           return {
             ...path,
-            courses: allCourses.filter(c => 
+            courses: allCourses.filter(c =>
               c.theme === 'Technical' || c.theme === 'Leadership'
             ).slice(0, 3)
           };
         case 7: // Customer Service Excellence
           return {
             ...path,
-            courses: allCourses.filter(c => 
+            courses: allCourses.filter(c =>
               c.theme === 'Soft Skills'
             ).slice(0, 2)
           };
@@ -415,12 +518,12 @@ export class TrainingService {
   getRecommendedPathsForDepartment(department: string | undefined): LearningPath[] {
     const allPaths = this.getPaths();
     const allCourses = this.getCourses();
-    
+
     if (!department) {
       // If no department specified, return general paths
       return allPaths.slice(0, 3);
     }
-    
+
     // Map departments to relevant themes
     const departmentThemeMap: { [key: string]: string[] } = {
       'management': ['Leadership', 'Project Management', 'Soft Skills'],
@@ -440,11 +543,11 @@ export class TrainingService {
       'research': ['Technical', 'Research', 'Innovation'],
       'design': ['Technical', 'Creativity', 'Soft Skills']
     };
-    
+
     // Normalize department name for matching
     const normalizedDepartment = department.toLowerCase();
     let relevantThemes: string[] = [];
-    
+
     // Find matching themes for department
     for (const [dept, themes] of Object.entries(departmentThemeMap)) {
       if (normalizedDepartment.includes(dept)) {
@@ -452,22 +555,22 @@ export class TrainingService {
         break;
       }
     }
-    
+
     // If no specific match, use general themes
     if (relevantThemes.length === 0) {
       relevantThemes = ['Soft Skills', 'Technical'];
     }
-    
+
     // Filter and create recommended paths
     const recommendedPaths: LearningPath[] = [];
-    
+
     // Create a path for each relevant theme
     relevantThemes.forEach((theme, index) => {
-      const themeCourses = allCourses.filter(course => 
+      const themeCourses = allCourses.filter(course =>
         course.theme.toLowerCase().includes(theme.toLowerCase()) ||
         theme.toLowerCase().includes(course.theme.toLowerCase())
       );
-      
+
       if (themeCourses.length > 0) {
         const path: LearningPath = {
           id: 100 + index, // Unique ID for recommended paths
@@ -482,7 +585,7 @@ export class TrainingService {
         recommendedPaths.push(path);
       }
     });
-    
+
     // If no theme-based paths were created, create a general one
     if (recommendedPaths.length === 0) {
       const generalPath: LearningPath = {
@@ -497,11 +600,11 @@ export class TrainingService {
       };
       recommendedPaths.push(generalPath);
     }
-    
+
     // Limit to 4 paths maximum
     return recommendedPaths.slice(0, 4);
   }
-  
+
   /**
    * Get path status based on progress
    * @param progress - Progress value between 0 and 1
@@ -511,7 +614,7 @@ export class TrainingService {
     if (progress > 0) return 'In Progress';
     return 'Not Started';
   }
-  
+
   /**
    * Get appropriate image for theme
    * @param theme - Learning theme
@@ -533,7 +636,7 @@ export class TrainingService {
       'operations': 'project-management.jpg',
       'research': 'excel.png'
     };
-    
+
     const normalizedTheme = theme.toLowerCase();
     return themeImageMap[normalizedTheme] || 'general-path.jpg';
   }
