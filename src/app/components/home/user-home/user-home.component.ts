@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, HostListener, Renderer2, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, HostListener, Renderer2, ElementRef, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
@@ -35,12 +35,19 @@ export class UserHomeComponent implements OnInit, OnDestroy {
   autoplayInterval: any;
   isPaused = false;
 
+  constructor() {
+    // Reactively update courses when they are loaded from Supabase
+    effect(() => {
+      this.loadCourses();
+    });
+  }
+
   // Touch handling
   private touchStartX = 0;
   private touchEndX = 0;
 
   // Course modules expansion
-  private expandedCourseModules = new Set<number>();
+  private expandedCourseModules = new Set<string>();
 
   // Computed property for template
   get hasRecommendedCourses(): boolean {
@@ -63,9 +70,9 @@ export class UserHomeComponent implements OnInit, OnDestroy {
       course.completionRate === 0
     );
 
-    // Select only 1 course from each theme
+    // Select only 1 course from each category
     this.recommendedCourses = this.categories.map(category => {
-      const coursesInCategory = recommendedCourses.filter(course => course.theme === category);
+      const coursesInCategory = recommendedCourses.filter(course => course.categoria === category);
       // Return first course from each category, or empty if no courses
       return coursesInCategory.length > 0 ? coursesInCategory[0] : null;
     }).filter(course => course !== null) as Course[];
@@ -73,9 +80,9 @@ export class UserHomeComponent implements OnInit, OnDestroy {
     // Group courses by category (each category will have at most 1 course)
     this.categorizedCourses = this.categories.map(category => ({
       category,
-      courses: this.recommendedCourses.filter(course => course.theme === category)
+      courses: this.recommendedCourses.filter(course => course.categoria === category)
     }));
-    
+
     // Load recommended learning paths based on user department
     if (this.currentUser) {
       this.recommendedPaths = this.trainingService.getRecommendedPathsForDepartment(this.currentUser.department);
@@ -90,7 +97,7 @@ export class UserHomeComponent implements OnInit, OnDestroy {
       this.router.navigate(['/course-viewer'], { queryParams: { courseId: course.id } });
     }
   }
-  
+
   /**
    * Navigate to learning paths page
    */
@@ -111,7 +118,7 @@ export class UserHomeComponent implements OnInit, OnDestroy {
   isNewCourse(course: Course): boolean {
     // In a real app, this would check the course creation date
     // For now, we'll simulate with a simple condition
-    return course.id > 20; // Simulate new courses
+    return course.id.length > 20; // Simulate new courses with UUIDs
   }
 
   /**
@@ -200,8 +207,8 @@ export class UserHomeComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Course modules methods
-  toggleCourseModules(courseId: number) {
+  // Course modules expansion
+  toggleCourseModules(courseId: string) {
     // Allow only one card to be expanded at a time
     if (this.expandedCourseModules.has(courseId)) {
       // If clicking on the same card, close it
@@ -213,27 +220,14 @@ export class UserHomeComponent implements OnInit, OnDestroy {
     }
   }
 
-  isCourseModulesExpanded(courseId: number): boolean {
+  isCourseModulesExpanded(courseId: string): boolean {
     return this.expandedCourseModules.has(courseId);
   }
 
-  getCourseModules(courseId: number) {
-    // Map course IDs to real course data - using displayed course names
-    const courseIndexMap: { [key: number]: { title: string, theme: string } } = {
-      1: { title: 'Workplace Hazard Recognition', theme: 'Safety' },
-      2: { title: 'Effective Communication Skills', theme: 'Leadership' },
-      3: { title: 'Anti-Harassment Training', theme: 'Compliance' },
-      4: { title: 'Time Management', theme: 'Soft Skills' },
-      5: { title: 'Cybersecurity Basics', theme: 'Technical' }
-    };
-
-    const courseInfo = courseIndexMap[courseId];
-    if (courseInfo) {
-      const allCourses = this.trainingService.getCourses();
-      const course = allCourses.find(c => c.title === courseInfo.title && c.theme === courseInfo.theme);
-      return course?.courseModules || [];
-    }
-    return [];
+  getCourseModules(courseId: string): any[] {
+    const allCourses = this.trainingService.getCourses();
+    const course = allCourses.find(c => c.id === courseId);
+    return course?.courseModules || [];
   }
 
   getModuleTypeLabel(type: string): string {
@@ -247,11 +241,17 @@ export class UserHomeComponent implements OnInit, OnDestroy {
     return labels[type] || 'Content';
   }
 
-  isModuleLocked(courseId: number, module: any): boolean {
-    // Simple logic: modules are locked if previous modules aren't completed
+  /**
+   * Check if a module is locked (previous modules not completed)
+   */
+  isModuleLocked(courseId: string, module: any): boolean {
     const modules = this.getCourseModules(courseId);
-    const moduleIndex = modules.findIndex(m => m.id === module.id);
+    if (modules.length === 0) return false;
 
+    const moduleIndex = modules.findIndex(m => m.id === module.id);
+    if (moduleIndex <= 0) return false; // First module is never locked
+
+    // Check if any previous module is not completed
     for (let i = 0; i < moduleIndex; i++) {
       if (!modules[i].isCompleted) {
         return true;
@@ -273,11 +273,11 @@ export class UserHomeComponent implements OnInit, OnDestroy {
   trackByCategory(index: number, item: CategorizedCourses): string {
     return item.category;
   }
-  
+
   /**
    * TrackBy function for learning paths
    */
-  trackByPathId(index: number, item: LearningPath): number {
+  trackByPathId(index: number, item: LearningPath): string | number {
     return item.id;
   }
 }

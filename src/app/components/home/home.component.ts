@@ -82,7 +82,7 @@ export class HomeComponent implements OnInit {
       // Group courses by category
       this.categorizedCourses = this.categories.map(category => ({
         category,
-        courses: this.recommendedCourses.filter(course => course.theme === category)
+        courses: this.recommendedCourses.filter(course => course.categoria === category)
       }));
     }
   }
@@ -177,7 +177,7 @@ export class HomeComponent implements OnInit {
   isNewCourse(course: Course): boolean {
     // In a real app, this would check the course creation date
     // For now, we'll simulate with a simple condition
-    return course.id > 20; // Simulate new courses
+    return course.id.length > 20; // Simulate new courses with UUIDs
   }
 
   /**

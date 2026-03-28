@@ -39,11 +39,11 @@ export class ImageUtils {
    */
   static getCourseImageUrl(course: any): string {
     // If course already has a valid image URL, use it
-    if (course.image && (course.image.startsWith('http') || course.image.startsWith('assets/'))) {
-      return course.image;
+    if (course.imagem_capa_url && (course.imagem_capa_url.startsWith('http') || course.imagem_capa_url.startsWith('assets/'))) {
+      return course.imagem_capa_url;
     }
     
     // Generate a placeholder image
-    return this.generatePlaceholderImage(course.title, course.theme);
+    return this.generatePlaceholderImage(course.titulo, course.categoria);
   }
 }

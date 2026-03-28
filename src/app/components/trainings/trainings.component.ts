@@ -1,4 +1,4 @@
-import { Component, signal, HostListener, OnInit } from '@angular/core';
+import { Component, signal, HostListener, OnInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -20,7 +20,7 @@ export class TrainingsComponent implements OnInit {
   showForm = signal(false);
   editMode = signal(false);
   currentCourse!: Course;
-  
+
   // New property for modules modal control
   showModulesModal = signal(false);
   selectedCourse: Course | null = null;
@@ -37,6 +37,11 @@ export class TrainingsComponent implements OnInit {
     this.currentUser = this.authService.getCurrentUser();
     this.isAdmin = this.authService.isAdmin();
     this.themes = this.service.themes;
+
+    // Reactively update courses when they are loaded from Supabase
+    effect(() => {
+      this.updateCourses();
+    });
   }
 
   ngOnInit() {
@@ -48,7 +53,7 @@ export class TrainingsComponent implements OnInit {
     return this.courses[theme] || [];
   }
 
-  trackById(index: number, item: Course): number {
+  trackById(index: number, item: Course): string {
     return item.id;
   }
 
@@ -60,16 +65,16 @@ export class TrainingsComponent implements OnInit {
 
   createEmptyCourse(): Course {
     const course: Course = {
-      id: Date.now(),
-      title: '',
-      description: '',
-      duration: 1,
-      modules: 1,
-      image: '',
+      id: '',
+      titulo: '',
+      descricao: '',
+      carga_horaria_horas: 1,
+      preco_avulso: 0,
+      imagem_capa_url: '',
       status: 'Active',
       completionRate: 0,
       targetAudience: '',
-      theme: 'Safety',
+      categoria: 'Safety',
       courseModules: []
     };
     return course;
@@ -78,7 +83,7 @@ export class TrainingsComponent implements OnInit {
   addNew() {
     if (!this.isAdmin) return; // Only admin can add new courses
     this.showForm.set(true);
-    this.editMode.set(false); // Corrigido: deve ser false para adicionar novo
+    this.editMode.set(false);
     this.currentCourse = this.createEmptyCourse();
   }
 
@@ -89,13 +94,18 @@ export class TrainingsComponent implements OnInit {
     this.currentCourse = structuredClone(course);
   }
 
-  deleteCourse(id: number) {
+  deleteCourse(id: string) {
     if (!this.isAdmin) return; // Only admin can delete
     if (!confirm('Are you sure you want to delete this course?')) {
       return;
     }
-    this.service.deleteCourse(id);
-    this.updateCourses();
+    this.service.deleteCourse(id).subscribe({
+      next: () => {
+        this.updateCourses();
+        alert('Course deleted successfully!');
+      },
+      error: (err) => alert('Error deleting course: ' + err.message)
+    });
   }
 
   saveCourse() {
@@ -103,85 +113,63 @@ export class TrainingsComponent implements OnInit {
       console.log('Attempting to save course:', this.currentCourse);
 
       // Comprehensive validation of required fields
-      if (!this.currentCourse.title?.trim()) {
+      if (!this.currentCourse.titulo?.trim()) {
         alert('Course title is required.');
         return;
       }
 
-      if (!this.currentCourse.description?.trim()) {
+      if (!this.currentCourse.descricao?.trim()) {
         alert('Course description is required.');
         return;
       }
 
-      if (!this.currentCourse.image?.trim()) {
-        alert('Course image URL is required.');
+      if (!this.currentCourse.categoria) {
+        alert('Please select a course category.');
         return;
       }
 
-      if (!this.currentCourse.targetAudience?.trim()) {
-        alert('Target audience is required.');
-        return;
-      }
-
-      if (!this.currentCourse.theme) {
-        alert('Please select a course theme.');
-        return;
-      }
-
-      // Validate duration and modules
-      if (!this.currentCourse.duration || this.currentCourse.duration <= 0) {
+      // Validate duration
+      if (!this.currentCourse.carga_horaria_horas || this.currentCourse.carga_horaria_horas <= 0) {
         alert('Valid course duration is required.');
         return;
       }
 
-      if (!this.currentCourse.modules || this.currentCourse.modules <= 0) {
-        alert('Valid number of modules is required.');
-        return;
+      // If image is missing, it's okay, service handles placeholder on load
+      // But we can also set a default here if we want it saved in DB
+      if (!this.currentCourse.imagem_capa_url?.trim()) {
+        this.currentCourse.imagem_capa_url = ''; // Let it be empty in DB
       }
 
       console.log('Validation passed, proceeding with save...');
 
-      let savedCourse: any;
-
       if (this.editMode()) {
         // Update existing course
         console.log('Updating existing course with ID:', this.currentCourse.id);
-        this.service.updateCourse(this.currentCourse);
-        savedCourse = this.currentCourse;
-        console.log('Course updated successfully');
+        this.service.updateCourse(this.currentCourse).subscribe({
+          next: () => {
+            this.updateCourses();
+            alert('Course updated successfully!');
+            this.cancel();
+          },
+          error: (err) => alert('Error updating course: ' + err.message)
+        });
       } else {
-        // Add new course with unique ID
-        const newCourse = {
-          ...this.currentCourse,
-          id: Date.now(),
-          completionRate: 0,
-          courseModules: this.currentCourse.courseModules || []
-        };
-        console.log('Adding new course:', newCourse);
-        this.service.addCourse(newCourse);
-        savedCourse = newCourse;
-        console.log('New course added successfully with ID:', savedCourse.id);
+        // Add new course
+        console.log('Adding new course:', this.currentCourse);
+        this.service.addCourse(this.currentCourse).subscribe({
+          next: () => {
+            this.updateCourses();
+            alert('New course added successfully!');
+            this.cancel();
+          },
+          error: (err) => alert('Error adding course: ' + err.message)
+        });
       }
-
-      // Update the UI to reflect changes
-      console.log('Updating courses list...');
-      this.updateCourses();
-
-      // Success feedback
-      alert(`${this.editMode() ? 'Course updated' : 'New course added'} successfully!`);
-
-      // Reset form and close modal
-      console.log('Closing form and resetting state...');
-      this.cancel();
 
     } catch (error: any) {
       console.error('Error saving course:', error);
-
-      // More detailed error message
       const errorMessage = error?.message ? `Error: ${error.message}` : 'An unexpected error occurred while saving the course.';
       alert(`Save failed. ${errorMessage} Please try again.`);
-
-      // Don't close the form on error so user can fix issues
     }
   }
 
@@ -191,7 +179,7 @@ export class TrainingsComponent implements OnInit {
   }
 
   @HostListener('document:keydown.escape', ['$event'])
-  onEscapeKey(event: KeyboardEvent) {
+  onEscapeKey(event: any) {
     if (this.showForm()) {
       this.cancel();
     }
@@ -201,7 +189,7 @@ export class TrainingsComponent implements OnInit {
     }
   }
 
-  onKeyDown(event: KeyboardEvent) {
+  onKeyDown(event: any) {
     if (event.key === 'Enter') {
       // Allow default form submission behavior
     } else if (event.key === 'Escape') {
@@ -210,7 +198,7 @@ export class TrainingsComponent implements OnInit {
     // Other keys can bubble up for normal behavior
   }
 
-  onModalClick(event: Event) {
+  onModalClick(event: any) {
     // Close modal if clicked outside the form content
     if (event.target === event.currentTarget) {
       this.cancel();
@@ -223,18 +211,18 @@ export class TrainingsComponent implements OnInit {
     this.selectedCourseModules = [...course.courseModules].sort((a, b) => a.order - b.order);
     this.showModulesModal.set(true);
   }
-  
+
   closeModulesModal() {
     this.showModulesModal.set(false);
     this.selectedCourse = null;
     this.selectedCourseModules = [];
   }
-  
+
   getModuleStatus(module: CourseModule): string {
     if (module.isCompleted) {
       return 'Completed';
     }
-    
+
     // Check if module is locked (if previous modules are not completed)
     const moduleIndex = this.selectedCourseModules.findIndex(m => m.id === module.id);
     for (let i = 0; i < moduleIndex; i++) {
@@ -242,15 +230,15 @@ export class TrainingsComponent implements OnInit {
         return 'Locked';
       }
     }
-    
+
     return 'Not Started';
   }
-  
+
   getTotalDuration(courseModules: CourseModule[]): number {
     const totalMinutes = courseModules.reduce((sum, module) => sum + module.duration, 0);
     return +(totalMinutes / 60).toFixed(1); // Convert to hours and round to 1 decimal
   }
-  
+
   getTypeLabel(type: string): string {
     const labels: { [key: string]: string } = {
       'video': 'Video',
@@ -293,7 +281,7 @@ export class TrainingsComponent implements OnInit {
   }
 
   // New method to close modules modal when clicking outside
-  onModulesModalClick(event: Event) {
+  onModulesModalClick(event: any) {
     if (event.target === event.currentTarget) {
       this.closeModulesModal();
     }

@@ -14,7 +14,7 @@ export class LearningPathCardComponent {
   @Input() isAdmin = false;
 
   @Output() editPath = new EventEmitter<LearningPath>();
-  @Output() deletePath = new EventEmitter<number>();
+  @Output() deletePath = new EventEmitter<string>();
 
   onEdit() {
     this.editPath.emit(this.learningPath);

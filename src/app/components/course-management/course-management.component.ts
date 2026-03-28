@@ -66,23 +66,23 @@ export class CourseManagementComponent {
     return this.courses()[theme] || [];
   }
 
-  trackById(index: number, item: Course | LearningPath): number {
+  trackById(index: number, item: Course | LearningPath): string | number {
     return item.id;
   }
 
   // Course Management
   createEmptyCourse(): Course {
     const course: Course = {
-      id: Date.now(),
-      title: '',
-      description: '',
-      duration: 1,
-      modules: 1,
-      image: '',
+      id: '',
+      titulo: '',
+      descricao: '',
+      carga_horaria_horas: 1,
+      preco_avulso: 0,
+      imagem_capa_url: '',
       status: 'Active',
       completionRate: 0,
       targetAudience: '',
-      theme: 'Safety',
+      categoria: 'Safety',
       courseModules: []
     };
     return course;
@@ -102,13 +102,18 @@ export class CourseManagementComponent {
     this.currentCourse = structuredClone(course);
   }
 
-  deleteCourse(id: number) {
+  deleteCourse(id: string) {
     if (!this.isAdmin) return;
     if (!confirm('Are you sure you want to delete this course?')) {
       return;
     }
-    this.service.deleteCourse(id);
-    this.loadCourses();
+    this.service.deleteCourse(id).subscribe({
+      next: () => {
+        this.loadCourses();
+        this.showToast('Course deleted successfully!');
+      },
+      error: (err) => this.showToast('Error deleting course: ' + err.message)
+    });
   }
 
   private showToast(message: string) {
@@ -118,27 +123,43 @@ export class CourseManagementComponent {
 
   saveCourse() {
     // Validate required fields
-    if (!this.currentCourse.title) {
+    if (!this.currentCourse.titulo) {
       this.showToast('Title is required.');
       return;
+    }
+
+    if (!this.currentCourse.categoria) {
+      this.showToast('Category is required.');
+      return;
+    }
+
+    // Ensure imagem_capa_url is handled even if empty
+    if (!this.currentCourse.imagem_capa_url?.trim()) {
+      this.currentCourse.imagem_capa_url = '';
     }
 
     this.isSavingCourse.set(true);
     try {
       console.log('Saving course:', this.currentCourse);
-      if (this.editCourseMode()) {
-        this.service.updateCourse(this.currentCourse);
-      } else {
-        // Add new course
-        this.service.addCourse(this.currentCourse);
-      }
-      this.loadCourses();
-      this.showToast('Course saved successfully!');
-      this.cancelCourse();
+      const action = this.editCourseMode()
+        ? this.service.updateCourse(this.currentCourse)
+        : this.service.addCourse(this.currentCourse);
+
+      action.subscribe({
+        next: () => {
+          this.loadCourses();
+          this.showToast('Course saved successfully!');
+          this.cancelCourse();
+          this.isSavingCourse.set(false);
+        },
+        error: (err) => {
+          console.error('Error saving course:', err);
+          this.showToast('Error saving course. Please try again.');
+          this.isSavingCourse.set(false);
+        }
+      });
     } catch (error) {
-      console.error('Error saving course:', error);
-      this.showToast('Error saving course. Please try again.');
-    } finally {
+      console.error('Error in saveCourse:', error);
       this.isSavingCourse.set(false);
     }
   }
@@ -151,7 +172,7 @@ export class CourseManagementComponent {
   // Learning Path Management
   createEmptyPath(): LearningPath {
     return {
-      id: Date.now(),
+      id: '',
       title: '',
       description: '',
       courses: [],
@@ -176,41 +197,49 @@ export class CourseManagementComponent {
     this.currentPath = structuredClone(path);
   }
 
-  deletePath(id: number) {
+  deletePath(id: string) {
     if (!this.isAdmin) return;
     if (!confirm('Are you sure you want to delete this path?')) {
       return;
     }
-    this.service.deletePath(id);
-    this.loadPaths();
+    this.service.deletePath(id).subscribe({
+      next: () => {
+        this.loadPaths();
+        this.showToast('Path deleted successfully!');
+      },
+      error: (err) => this.showToast('Error deleting path: ' + err.message)
+    });
   }
 
   savePath() {
     // Validate required fields
     if (!this.currentPath.title) {
-      this.toastMessage.set('Title is required.');
-      setTimeout(() => this.toastMessage.set(''), 3000);
+      this.showToast('Title is required.');
       return;
     }
 
     this.isSavingPath.set(true);
     try {
       console.log('Saving path:', this.currentPath);
-      if (this.editPathMode()) {
-        this.service.updatePath(this.currentPath);
-      } else {
-        // Add new path
-        this.service.addPath(this.currentPath);
-      }
-      this.loadPaths();
-      this.toastMessage.set('Path saved successfully!');
-      setTimeout(() => this.toastMessage.set(''), 3000);
-      this.cancelPath();
+      const action = this.editPathMode()
+        ? this.service.updatePath(this.currentPath)
+        : this.service.addPath(this.currentPath);
+
+      action.subscribe({
+        next: () => {
+          this.loadPaths();
+          this.showToast('Path saved successfully!');
+          this.cancelPath();
+          this.isSavingPath.set(false);
+        },
+        error: (err) => {
+          console.error('Error saving path:', err);
+          this.showToast('Error saving path. Please try again.');
+          this.isSavingPath.set(false);
+        }
+      });
     } catch (error) {
-      console.error('Error saving path:', error);
-      this.toastMessage.set('Error saving path. Please try again.');
-      setTimeout(() => this.toastMessage.set(''), 3000);
-    } finally {
+      console.error('Error in savePath:', error);
       this.isSavingPath.set(false);
     }
   }
@@ -220,7 +249,7 @@ export class CourseManagementComponent {
     this.currentPath = this.createEmptyPath();
   }
 
-  toggleCourseSelection(id: number) {
+  toggleCourseSelection(id: string) {
     const selected = this.currentPath.courses.map((c: Course) => c.id);
     if (selected.includes(id)) {
       this.currentPath.courses = this.currentPath.courses.filter((c: Course) => c.id !== id);
@@ -230,7 +259,7 @@ export class CourseManagementComponent {
     }
   }
 
-  isCourseSelected(id: number): boolean {
+  isCourseSelected(id: string): boolean {
     return this.currentPath.courses.some((c: Course) => c.id === id);
   }
 

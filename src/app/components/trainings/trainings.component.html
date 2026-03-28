@@ -9,13 +9,14 @@
     <h3 class="theme-title">{{ theme }}</h3>
     <div class="courses-grid">
       <div class="course-card" *ngFor="let course of getCoursesForTheme(theme); trackBy: trackById">
-        <img [src]="course.image" alt="{{ course.title }}" class="course-image" />
+        <img [src]="course.imagem_capa_url" alt="{{ course.titulo }}" class="course-image" />
         <div class="course-info">
-          <h4>{{ course.title }}</h4>
-          <p class="description">{{ course.description }}</p>
+          <h4>{{ course.titulo }}</h4>
+          <p class="description">{{ course.descricao }}</p>
           <div class="course-details">
-            <span class="duration"> {{ course.duration }}h</span>
-            <span class="modules"> {{ course.modules }} modules</span>
+            <span class="duration"> {{ course.carga_horaria_horas }}h</span>
+            <span class="modules"> {{ course.courseModules.length }} modules</span>
+            <span class="price" *ngIf="course.preco_avulso > 0"> R$ {{ course.preco_avulso }}</span>
             <span class="status" [class.active]="course.status === 'Active'" [class.upcoming]="course.status === 'Upcoming'">
               {{ course.status }}
             </span>
@@ -26,20 +27,11 @@
               <div class="progress-fill" [style.width.%]="course.completionRate"></div>
             </div>
           </div>
-          <p class="audience">Audience: {{ course.targetAudience }}</p>
+          <p class="audience" *ngIf="course.targetAudience">Audience: {{ course.targetAudience }}</p>
           <div class="admin-actions" *ngIf="isAdmin">
             <button (click)="editCourse(course)">Edit</button>
             <button class="delete" (click)="deleteCourse(course.id)" *ngIf="isAdmin">Delete</button>
           </div>
-          
-          <!-- Button to open modules modal -->
-          <!-- <div class="modules-toggle">
-            <button 
-              class="toggle-modules-btn" 
-              (click)="openModulesModal(course)">
-              View Modules
-            </button>
-          </div> -->
         </div>
       </div>
     </div>
@@ -49,29 +41,29 @@
   <div *ngIf="showModulesModal()" class="modules-modal modules-modal-overlay" (click)="onModulesModalClick($event)">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>{{ selectedCourse?.title }} - Modules</h3>
+        <h3>{{ selectedCourse?.titulo }} - Modules</h3>
         <button type="button" class="close-modal" (click)="closeModulesModal()" aria-label="Close modal">
           ×
         </button>
       </div>
-      
+
       <div class="modal-body">
         <div class="course-info-modal">
-          <img [src]="selectedCourse?.image" [alt]="selectedCourse?.title" class="course-thumbnail" />
+          <img [src]="selectedCourse?.imagem_capa_url" [alt]="selectedCourse?.titulo" class="course-thumbnail" />
           <div class="course-details-modal">
-            <p class="course-description">{{ selectedCourse?.description }}</p>
+            <p class="course-description">{{ selectedCourse?.descricao }}</p>
             <div class="course-meta">
-              <span class="duration"> {{ selectedCourse?.duration }}h</span>
-              <span class="modules"> {{ selectedCourse?.modules }} modules</span>
+              <span class="duration"> {{ selectedCourse?.carga_horaria_horas }}h</span>
+              <span class="modules"> {{ selectedCourse?.courseModules?.length }} modules</span>
               <span class="completion">{{ selectedCourse?.completionRate }}% complete</span>
             </div>
           </div>
         </div>
-        
+
         <div class="modules-header">
           <h4>Course Modules ({{ selectedCourseModules.length }} modules, {{ getTotalDuration(selectedCourseModules) }}h total)</h4>
         </div>
-        
+
         <div class="modules-list">
           <div class="course-module-item" *ngFor="let module of selectedCourseModules; let i = index">
             <div class="module-info">
@@ -91,12 +83,12 @@
                 </div>
               </div>
             </div>
-            
+
             <div class="module-status">
               <span class="status-badge" [class]="getModuleStatus(module).toLowerCase()">
                 {{ getModuleStatus(module) }}
               </span>
-              <button 
+              <button
                 class="start-module-btn"
                 (click)="startModule(module)"
                 [disabled]="getModuleStatus(module) === 'Locked'">
@@ -121,57 +113,55 @@
       <form #courseForm="ngForm" (ngSubmit)="saveCourse()">
         <input
           type="text"
-          [(ngModel)]="currentCourse.title"
-          name="title"
+          [(ngModel)]="currentCourse.titulo"
+          name="titulo"
           placeholder="Title"
           required
-          #title="ngModel"
+          #titulo="ngModel"
           (keydown)="onKeyDown($event)"
         />
 
         <textarea
-          [(ngModel)]="currentCourse.description"
-          name="description"
+          [(ngModel)]="currentCourse.descricao"
+          name="descricao"
           placeholder="Description"
           required
-          #description="ngModel"
+          #descricao="ngModel"
           rows="3">
         </textarea>
 
         <input
           type="number"
-          [(ngModel)]="currentCourse.duration"
-          name="duration"
+          [(ngModel)]="currentCourse.carga_horaria_horas"
+          name="carga_horaria_horas"
           placeholder="Duration (hours)"
           min="0.5"
           step="0.5"
           required
-          #duration="ngModel"
+          #carga_horaria_horas="ngModel"
         />
 
         <input
           type="number"
-          [(ngModel)]="currentCourse.modules"
-          name="modules"
-          placeholder="Number of modules"
-          min="1"
-          required
-          #modules="ngModel"
+          [(ngModel)]="currentCourse.preco_avulso"
+          name="preco_avulso"
+          placeholder="Price (optional)"
+          min="0"
+          step="0.01"
+          #preco_avulso="ngModel"
         />
 
         <input
           type="text"
-          [(ngModel)]="currentCourse.image"
-          name="image"
-          placeholder="Image URL"
-          required
-          #image="ngModel"
+          [(ngModel)]="currentCourse.imagem_capa_url"
+          name="imagem_capa_url"
+          placeholder="Image URL (optional)"
+          #imagem_capa_url="ngModel"
         />
 
         <select
           [(ngModel)]="currentCourse.status"
           name="status"
-          required
           #status="ngModel">
           <option value="Active">Active</option>
           <option value="Upcoming">Upcoming</option>
@@ -181,16 +171,15 @@
           type="text"
           [(ngModel)]="currentCourse.targetAudience"
           name="targetAudience"
-          placeholder="Target Audience"
-          required
+          placeholder="Target Audience (optional)"
           #targetAudience="ngModel"
         />
 
         <select
-          [(ngModel)]="currentCourse.theme"
-          name="theme"
+          [(ngModel)]="currentCourse.categoria"
+          name="categoria"
           required
-          #theme="ngModel">
+          #categoria="ngModel">
           <option *ngFor="let theme of themes" [value]="theme">{{ theme }}</option>
         </select>
 

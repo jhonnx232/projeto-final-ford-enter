@@ -1,4 +1,4 @@
-import { Component, signal, computed, HostListener, OnInit } from '@angular/core';
+import { Component, signal, computed, HostListener, OnInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
@@ -26,15 +26,20 @@ export class LearningPathsComponent implements OnInit {
   currentPath!: LearningPath;
 
   constructor(private service: TrainingService, private authService: AuthService) {
-    this.allCourses.set(this.service.getCourses());
     this.isAdmin = authService.isAdmin();
     this.currentUser = this.authService.getCurrentUser();
+
+    // Reactively update allCourses when service signals change
+    effect(() => {
+      this.allCourses.set(this.service.getCourses());
+      this.loadPaths(); // Reload paths if courses change
+    });
   }
-  
+
   ngOnInit() {
     this.loadPaths();
   }
-  
+
   loadPaths() {
     if (this.currentUser) {
       // Load recommended paths based on user's department
@@ -47,12 +52,12 @@ export class LearningPathsComponent implements OnInit {
   }
 
   createEmptyPath(): LearningPath {
-    return { 
-      id: Date.now(), 
-      title: '', 
-      description: '', 
-      courses: [], 
-      progress: 0, 
+    return {
+      id: '',
+      title: '',
+      description: '',
+      courses: [],
+      progress: 0,
       status: 'Not Started',
       estimatedHours: '',
       image: ''
@@ -73,13 +78,18 @@ export class LearningPathsComponent implements OnInit {
     this.currentPath = structuredClone(path);
   }
 
-  deletePath(id: number) {
+  deletePath(id: string) {
     if (!this.isAdmin) return; // Only admin can delete
     if (!confirm('Are you sure you want to delete this path?')) {
       return;
     }
-    this.service.deletePath(id);
-    this.loadPaths(); // Reload paths after deletion
+    this.service.deletePath(id).subscribe({
+      next: () => {
+        this.loadPaths();
+        this.showToast('Path deleted successfully!');
+      },
+      error: (err) => this.showToast('Error deleting path: ' + err.message)
+    });
   }
 
   private showToast(message: string) {
@@ -131,45 +141,29 @@ export class LearningPathsComponent implements OnInit {
         status: this.currentPath.status || 'Not Started'
       };
 
-      if (this.editMode()) {
-        // Update existing path
-        console.log('Updating existing path with ID:', this.currentPath.id);
-        this.service.updatePath(pathData);
-        console.log('Path updated successfully');
-      } else {
-        // Add new path with unique ID
-        const newPath: LearningPath = {
-          ...pathData,
-          id: Date.now(), // Generate a unique ID
-          progress: 0,
-          status: 'Not Started'
-        };
-        console.log('Adding new learning path:', newPath);
-        this.service.addPath(newPath);
-        console.log('New path added successfully with ID:', newPath.id);
-      }
+      const action = this.editMode()
+        ? this.service.updatePath(pathData)
+        : this.service.addPath(pathData);
 
-      // Update UI with latest paths
-      console.log('Updating paths list...');
-      this.loadPaths(); // Reload paths to show updated list
-
-      // Success feedback
-      const operation = this.editMode() ? 'updated' : 'created';
-      this.showToast(`Learning path ${operation} successfully!`);
-
-      // Reset form and close modal
-      console.log('Closing form and resetting state...');
-      this.cancel();
+      action.subscribe({
+        next: () => {
+          this.loadPaths();
+          const operation = this.editMode() ? 'updated' : 'created';
+          this.showToast(`Learning path ${operation} successfully!`);
+          this.showForm.set(false);
+          this.isSaving.set(false);
+          this.cancel();
+        },
+        error: (err: any) => {
+          console.error('Error saving path:', err);
+          const errorMessage = err?.message ? `Error: ${err.message}` : 'An unexpected error occurred.';
+          this.showToast(`Save failed. ${errorMessage} Please try again.`);
+          this.isSaving.set(false);
+        }
+      });
 
     } catch (error: any) {
-      console.error('Error saving learning path:', error);
-
-      // More detailed error message
-      const errorMessage = error?.message ? `Error: ${error.message}` : 'An unexpected error occurred.';
-      this.showToast(`Save failed. ${errorMessage} Please try again.`);
-
-      // Don't close the form on error
-    } finally {
+      console.error('Error in savePath:', error);
       this.isSaving.set(false);
     }
   }
@@ -179,7 +173,7 @@ export class LearningPathsComponent implements OnInit {
     this.currentPath = this.createEmptyPath();
   }
 
-  toggleCourseSelection(id: number) {
+  toggleCourseSelection(id: string) {
     const selected = this.currentPath.courses.map(c => c.id);
     if (selected.includes(id)) {
       this.currentPath.courses = this.currentPath.courses.filter(c => c.id !== id);
@@ -189,22 +183,22 @@ export class LearningPathsComponent implements OnInit {
     }
   }
 
-  isCourseSelected(id: number): boolean {
+  isCourseSelected(id: string): boolean {
     return this.currentPath.courses.some(c => c.id === id);
   }
 
-  trackById(index: number, item: any): number {
+  trackById(index: number, item: any): string | number {
     return item.id;
   }
 
   @HostListener('document:keydown.escape', ['$event'])
-  onEscapeKey(event: KeyboardEvent) {
+  onEscapeKey(event: any) {
     if (this.showForm()) {
       this.cancel();
     }
   }
 
-  onKeyDown(event: KeyboardEvent) {
+  onKeyDown(event: any) {
     if (event.key === 'Enter') {
       // Allow default form submission behavior
     } else if (event.key === 'Escape') {
@@ -213,7 +207,7 @@ export class LearningPathsComponent implements OnInit {
     // Other keys can bubble up for normal behavior
   }
 
-  onModalClick(event: Event) {
+  onModalClick(event: any) {
     // Close modal if clicked outside the form content
     if (event.target === event.currentTarget) {
       this.cancel();

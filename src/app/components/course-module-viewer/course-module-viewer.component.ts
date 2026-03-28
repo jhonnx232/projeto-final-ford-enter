@@ -34,7 +34,7 @@ export class CourseModuleViewerComponent implements OnInit {
   }
 
   loadCourse() {
-    const courseId = Number(this.route.snapshot.queryParams['courseId']);
+    const courseId = this.route.snapshot.queryParams['courseId'];
     if (courseId) {
       // Find course by ID
       const allCourses = this.trainingService.getCourses();
@@ -65,23 +65,34 @@ export class CourseModuleViewerComponent implements OnInit {
     // Mark module as completed
     module.isCompleted = true;
 
-    // Update course progress based on modules completion rate
-    this.updateCourseProgress();
+    // Update the module in Supabase
+    if (this.course) {
+      this.trainingService.updateModule(this.course.id, module).subscribe({
+        next: () => {
+          // Update course progress based on modules completion rate
+          this.updateCourseProgress();
+          // Show completion message
+          alert(`Module "${module.title}" marked as complete! 🎉`);
 
-    // Show completion message
-    alert(`Module "${module.title}" marked as complete! 🎉`);
-
-    // Check if all modules are completed
-    const allCompleted = this.courseModules.every(m => m.isCompleted);
-    if (allCompleted) {
-      this.handleCourseCompletion();
+          // Check if all modules are completed
+          const allCompleted = this.courseModules.every(m => m.isCompleted);
+          if (allCompleted) {
+            this.handleCourseCompletion();
+          }
+        },
+        error: (err) => {
+          console.error('Error marking module as complete:', err);
+          alert('Error updating module status. Please try again.');
+          module.isCompleted = false; // Rollback
+        }
+      });
     }
   }
 
   private handleCourseCompletion() {
     if (this.course) {
       // Show completion message
-      alert(`Congratulations! You have completed the entire "${this.course?.title}" course! 🏆`);
+      alert(`Congratulations! You have completed the entire "${this.course?.titulo}" course! 🏆`);
     }
   }
 
@@ -92,7 +103,9 @@ export class CourseModuleViewerComponent implements OnInit {
       this.course.completionRate = Math.round((completedModules / totalModules) * 100);
 
       // Update the course in service
-      this.trainingService.updateCourse(this.course);
+      this.trainingService.updateCourse(this.course).subscribe({
+        error: (err) => console.error('Error updating course progress:', err)
+      });
     }
   }
 

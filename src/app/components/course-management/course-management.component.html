@@ -16,18 +16,18 @@
       <h3 class="theme-title">{{ theme }}</h3>
       <div class="courses-grid">
         <div class="course-card" *ngFor="let course of getCoursesForTheme(theme); trackBy: trackById">
-          <img [src]="course.image" alt="{{ course.title }}" class="course-image" />
+          <img [src]="course.imagem_capa_url" alt="{{ course.titulo }}" class="course-image" />
           <div class="course-info">
-            <h4>{{ course.title }}</h4>
-            <p class="description">{{ course.description }}</p>
+            <h4>{{ course.titulo }}</h4>
+            <p class="description">{{ course.descricao }}</p>
             <div class="course-details">
-              <span class="duration"> {{ course.duration }}h</span>
-              <span class="modules"> {{ course.modules }} modules</span>
+              <span class="duration"> {{ course.carga_horaria_horas }}h</span>
+              <span class="modules"> {{ course.courseModules.length }} modules</span>
               <span class="status" [class.active]="course.status === 'Active'" [class.upcoming]="course.status === 'Upcoming'">
                 {{ course.status }}
               </span>
             </div>
-            <p class="audience">Audience: {{ course.targetAudience }}</p>
+            <p class="audience" *ngIf="course.targetAudience">Audience: {{ course.targetAudience }}</p>
             <div class="admin-actions" *ngIf="isAdmin">
               <button (click)="editCourse(course)">Edit</button>
               <button class="delete" (click)="deleteCourse(course.id)">Delete</button>
@@ -69,7 +69,7 @@
   </div>
 
   <!-- Course Form -->
-  <div *ngIf="showCourseForm()" class="form-card" (click)="onModalClick($event)">
+  <div *ngIf="showCourseForm()" class="form-card" (click)="onModalClick($any($event))">
     <div class="form-content">
       <div class="form-header">
         <h3>{{ editCourseMode() ? 'Edit Course' : 'Add New Course' }}</h3>
@@ -81,15 +81,16 @@
       <form #courseForm="ngForm" (ngSubmit)="saveCourse()">
         <input
           type="text"
-          [(ngModel)]="currentCourse.title"
-          name="title"
+          [(ngModel)]="currentCourse.titulo"
+          name="titulo"
           placeholder="Title"
           required
+          (keydown)="onKeyDown($any($event))"
         />
 
         <textarea
-          [(ngModel)]="currentCourse.description"
-          name="description"
+          [(ngModel)]="currentCourse.descricao"
+          name="descricao"
           placeholder="Description"
           required
           rows="3">
@@ -97,8 +98,8 @@
 
         <input
           type="number"
-          [(ngModel)]="currentCourse.duration"
-          name="duration"
+          [(ngModel)]="currentCourse.carga_horaria_horas"
+          name="carga_horaria_horas"
           placeholder="Duration (hours)"
           min="0.5"
           step="0.5"
@@ -106,16 +107,17 @@
 
         <input
           type="number"
-          [(ngModel)]="currentCourse.modules"
-          name="modules"
-          placeholder="Number of modules"
-          min="1"
+          [(ngModel)]="currentCourse.preco_avulso"
+          name="preco_avulso"
+          placeholder="Price (optional)"
+          min="0"
+          step="0.01"
         />
 
         <input
           type="text"
-          [(ngModel)]="currentCourse.image"
-          name="image"
+          [(ngModel)]="currentCourse.imagem_capa_url"
+          name="imagem_capa_url"
           placeholder="Image URL"
         />
 
@@ -134,8 +136,8 @@
         />
 
         <select
-          [(ngModel)]="currentCourse.theme"
-          name="theme">
+          [(ngModel)]="currentCourse.categoria"
+          name="categoria">
           <option *ngFor="let theme of themes" [value]="theme">{{ theme }}</option>
         </select>
 
@@ -177,7 +179,7 @@
   </div>
 
   <!-- Path Form -->
-  <div *ngIf="showPathForm()" class="form-card" (click)="onModalClick($event)">
+  <div *ngIf="showPathForm()" class="form-card" (click)="onModalClick($any($event))">
     <div class="form-content">
       <div class="form-header">
         <h3>{{ editPathMode() ? 'Edit Learning Path' : 'Add New Learning Path' }}</h3>
@@ -193,6 +195,7 @@
           name="title"
           placeholder="Title"
           required
+          (keydown)="onKeyDown($any($event))"
         />
 
         <textarea
@@ -229,8 +232,8 @@
                   [checked]="isCourseSelected(course.id)"
                   (change)="toggleCourseSelection(course.id)" />
                 <div class="course-info-text">
-                  <div class="course-title">{{ course.title }}</div>
-                  <div class="course-details-text">{{ course.duration }}h, {{ course.theme }}</div>
+                  <div class="course-title">{{ course.titulo }}</div>
+                  <div class="course-details-text">{{ course.carga_horaria_horas }}h, {{ course.categoria }}</div>
                 </div>
               </label>
             </div>

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, from, tap, map, catchError, throwError } from 'rxjs';
+import { Observable, from, tap, map, catchError, throwError, switchMap } from 'rxjs';
 import { Usuario } from '../models/usuario.model';
 import { SupabaseService } from './supabase/supabase.service';
 
@@ -10,7 +10,7 @@ export class AuthService {
 
   constructor(private supabaseService: SupabaseService) {}
 
-  // 🔹 LOGIN – using Supabase authentication
+  // 🔹 LOGIN – using Supabase authentication and fetching profile from 'perfis'
   login(usuario: Pick<Usuario, 'nome' | 'senha'>): Observable<Usuario> {
     return from(
       this.supabaseService.supabase.auth.signInWithPassword({
@@ -18,38 +18,55 @@ export class AuthService {
         password: usuario.senha
       })
     ).pipe(
-      map((response: any) => {
+      switchMap((response: any) => {
         if (response.error) {
           throw response.error;
         }
 
-        // Get user data from Supabase
         const user = response.data.user;
-        const usuarioLogado: Usuario = {
-          id: user.id,
-          nome: user.user_metadata?.nome || user.email?.split('@')[0] || 'User',
-          senha: '',
-          email: user.email || '',
-          perfil: user.user_metadata?.perfil || 'user',
-          department: user.user_metadata?.department
-        };
+        const session = response.data.session;
 
-        // Store in localStorage for session management
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('usuario', JSON.stringify(usuarioLogado));
-        localStorage.setItem('supabase_session', JSON.stringify(response.data.session));
+        // Fetch user profile from public 'perfis' table
+        return from(
+          this.supabaseService.supabase
+            .from('perfis')
+            .select('*')
+            .eq('id', user.id)
+            .single()
+        ).pipe(
+          map((profileRes: any) => {
+            if (profileRes.error) {
+              console.warn('Profile not found in "perfis" table, using auth metadata');
+            }
 
-        return usuarioLogado;
+            const profile = profileRes.data || {};
+            const usuarioLogado: Usuario = {
+              id: user.id,
+              nome: profile.nome || user.user_metadata?.nome || user.email?.split('@')[0] || 'User',
+              senha: '',
+              email: user.email || '',
+              perfil: (profile.perfil || user.user_metadata?.perfil || 'aluno') as any,
+              department: profile.department || user.user_metadata?.department
+            };
+
+            // Store in localStorage for session management
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('usuario', JSON.stringify(usuarioLogado));
+            localStorage.setItem('supabase_session', JSON.stringify(session));
+
+            return usuarioLogado;
+          })
+        );
       }),
       catchError((error) => {
         console.error('Login error:', error);
-        return throwError(() => ({ status: 401, message: 'Invalid credentials. Check username and password.' }));
+        return throwError(() => ({ status: 401, message: 'Invalid credentials or error loading profile.' }));
       }),
       tap((response) => console.log("✅ Login successful!", response))
     );
   }
 
-  // 🔹 REGISTER – creates user in Supabase
+  // 🔹 REGISTER – creates user in Supabase (trigger handles 'perfis' table)
   register(userData: { nome: string, email: string, senha: string, department?: string }): Observable<Usuario> {
     return from(
       this.supabaseService.supabase.auth.signUp({
@@ -58,7 +75,7 @@ export class AuthService {
         options: {
           data: {
             nome: userData.nome,
-            perfil: 'user',
+            perfil: 'aluno',
             department: userData.department
           }
         }
@@ -75,7 +92,7 @@ export class AuthService {
           nome: user.user_metadata?.nome || userData.nome,
           senha: '',
           email: user.email || userData.email,
-          perfil: user.user_metadata?.perfil || 'user',
+          perfil: (user.user_metadata?.perfil || 'aluno') as any,
           department: user.user_metadata?.department || userData.department
         };
 
@@ -98,7 +115,24 @@ export class AuthService {
 
   // 🔹 Check if user is logged in
   isLoggedIn(): boolean {
-    return localStorage.getItem('isLoggedIn') === 'true';
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (!isLoggedIn) return false;
+    
+    // Check if session exists in Supabase
+    this.supabaseService.supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        // Clear local storage if session is gone
+        this.clearLocalStorage();
+      }
+    });
+
+    return isLoggedIn;
+  }
+
+  private clearLocalStorage() {
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('usuario');
+    localStorage.removeItem('supabase_session');
   }
 
   // 🔹 Return logged in user data
@@ -119,16 +153,12 @@ export class AuthService {
       this.supabaseService.supabase.auth.signOut()
     ).pipe(
       map(() => {
-        localStorage.removeItem('isLoggedIn');
-        localStorage.removeItem('usuario');
-        localStorage.removeItem('supabase_session');
+        this.clearLocalStorage();
       }),
       catchError((error) => {
         console.error('Logout error:', error);
         // Even if Supabase logout fails, clear local storage
-        localStorage.removeItem('isLoggedIn');
-        localStorage.removeItem('usuario');
-        localStorage.removeItem('supabase_session');
+        this.clearLocalStorage();
         return throwError(() => error);
       })
     );

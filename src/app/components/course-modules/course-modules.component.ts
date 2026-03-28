@@ -565,13 +565,24 @@ export class CourseModulesComponent implements OnInit {
   loadCourse() {
     const courseId = Number(this.route.snapshot.queryParams['courseId']);
     if (courseId) {
-      // Find course by ID
-      const allCourses = this.trainingService.getCourses();
-      this.course = allCourses.find(c => c.id === courseId);
-
-      if (this.course) {
-        this.courseModules = this.course.courseModules;
-      }
+      // Load courses from Supabase
+      this.trainingService.loadCoursesFromSupabase().subscribe({
+        next: (courses) => {
+          this.course = courses.find(c => c.id === courseId);
+          if (this.course) {
+            this.courseModules = this.course.courseModules;
+          }
+        },
+        error: (error) => {
+          console.error('Error loading course:', error);
+          // Fallback to local data if Supabase fails
+          const allCourses = this.trainingService.getCourses();
+          this.course = allCourses.find(c => c.id === courseId);
+          if (this.course) {
+            this.courseModules = this.course.courseModules;
+          }
+        }
+      });
     }
   }
 
@@ -594,8 +605,11 @@ export class CourseModulesComponent implements OnInit {
     // Mark module as completed
     module.isCompleted = true;
 
-    // Update course progress
+    // Update module in service
     if (this.course) {
+      this.trainingService.updateModule(this.course.id, module);
+
+      // Update course progress
       const completedModules = this.courseModules.filter(m => m.isCompleted).length;
       this.course.completionRate = Math.round((completedModules / this.courseModules.length) * 100);
 

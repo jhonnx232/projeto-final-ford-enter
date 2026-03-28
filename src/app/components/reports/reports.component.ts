@@ -16,7 +16,7 @@ export class ReportsComponent {
 
   isAdmin = true;
   filterPeriod = signal<'week' | 'month'>('month');
-  
+
   // Opções de período para o filtro
   periodOptions = ['week', 'month'];
 
@@ -47,12 +47,26 @@ export class ReportsComponent {
     this.completionRate.set(this.totalTrainings() > 0 ? (this.completedTrainings() / this.totalTrainings()) * 100 : 0);
     this.activePaths.set(this.paths.filter(p => p.status === 'In Progress').length);
 
-    // Bar chart: Progresso por categoria (exemplo)
-    this.barChartData.set([
-      { name: 'Safety', value: 80 },
-      { name: 'Compliance', value: 60 },
-      { name: 'Leadership', value: 90 }
-    ]);
+    // Bar chart: Progresso por categoria
+    const themeProgress: { [key: string]: { total: number, completed: number } } = {};
+    this.service.themes.forEach(theme => themeProgress[theme] = { total: 0, completed: 0 });
+
+    const allCourses = this.service.getCourses();
+    allCourses.forEach(course => {
+      if (themeProgress[course.categoria]) {
+        themeProgress[course.categoria].total += 100;
+        themeProgress[course.categoria].completed += course.completionRate;
+      }
+    });
+
+    const barData = this.service.themes.map(theme => ({
+      name: theme,
+      value: themeProgress[theme].total > 0
+        ? Math.round(themeProgress[theme].completed / (themeProgress[theme].total / 100))
+        : 0
+    }));
+
+    this.barChartData.set(barData);
 
     // Pie chart: Trainings vs Paths
     this.pieChartData.set([

@@ -6,9 +6,9 @@
     <!-- Sidebar Header -->
     <div class="sidebar-header">
       <div class="course-sidebar-info">
-        <img [src]="course?.image" [alt]="course?.title" class="sidebar-course-thumbnail">
+        <img [src]="course?.imagem_capa_url" [alt]="course?.titulo" class="sidebar-course-thumbnail">
         <div class="sidebar-course-details">
-          <h3>{{ course?.title }}</h3>
+          <h3>{{ course?.titulo }}</h3>
           <div class="course-progress-sidebar">
             <div class="progress-bar-sidebar">
               <div class="progress-fill-sidebar" [style.width.%]="course?.completionRate"></div>
@@ -25,7 +25,7 @@
     <!-- Modules List -->
     <div class="modules-list">
       <div class="modules-header">
-        <h4>{{ course?.modules }} Modules</h4>
+        <h4>{{ course?.courseModules?.length }} Modules</h4>
       </div>
 
       <div class="module-list-item"
@@ -68,7 +68,7 @@
         <button class="sidebar-toggle-btn" (click)="toggleSidebar()">
           <span>☰</span>
         </button>
-        <span class="bread-crumb-text">Home / Training / {{ course?.title }}</span>
+        <span class="bread-crumb-text">Home / Training / {{ course?.titulo }}</span>
       </div>
 
       <div class="content-actions">
@@ -305,16 +305,16 @@
       <div *ngIf="!currentModule" class="no-module-selected">
         <div class="welcome-message">
           <div class="welcome-icon">🎯</div>
-          <h2>Welcome to {{ course?.title }}</h2>
+          <h2>Welcome to {{ course?.titulo }}</h2>
           <p>Select a module from the sidebar to begin your learning journey.</p>
 
           <div class="course-overview">
             <div class="overview-stat">
-              <span class="stat-number">{{ course?.modules }}</span>
+              <span class="stat-number">{{ course?.courseModules?.length }}</span>
               <span class="stat-label">Modules</span>
             </div>
             <div class="overview-stat">
-              <span class="stat-number">{{ getTotalDuration(course) }}h</span>
+              <span class="stat-number">{{ course?.carga_horaria_horas }}h</span>
               <span class="stat-label">Duration</span>
             </div>
             <div class="overview-stat">

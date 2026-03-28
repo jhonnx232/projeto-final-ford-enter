@@ -60,7 +60,7 @@
         <label>
           <input type="checkbox" formControlName="acceptedTerms" />
           I have read and accept the
-          <a href="#" (click)="openPrivacyPolicy($event)">Privacy Policy (LGPD)</a>.
+          <a href="#" (click)="openPrivacyPolicy($any($event))">Privacy Policy (LGPD)</a>.
         </label>
         <div class="invalid-feedback" *ngIf="registerForm.get('acceptedTerms')?.invalid && registerForm.get('acceptedTerms')?.touched">
           You must accept the privacy policy.

@@ -1,24 +1,24 @@
 <div class="carousel-container" (mouseenter)="onMouseEnter()" (mouseleave)="onMouseLeave()"
-     (touchstart)="onTouchStart($event)" (touchend)="onTouchEnd($event)">
+     (touchstart)="onTouchStart($any($event))" (touchend)="onTouchEnd($any($event))">
 
   <div class="carousel" [style.transform]="'translateX(' + (-currentIndex * 100) + '%)'">
     <div class="slide" *ngFor="let slide of slides; let i = index">
       <div class="slide-items">
-        <div class="course-card" 
+        <div class="course-card"
              *ngFor="let course of slide; trackBy: trackById"
              (click)="onCourseClick(course)">
           <div class="card-image">
-            <img [src]="course.image.startsWith('http') ? course.image : 'assets/images/' + course.image" [alt]="course.title" />
+            <img [src]="course.imagem_capa_url" [alt]="course.titulo" />
             <!-- Badges for new or popular courses -->
             <div *ngIf="course.completionRate === 0" class="status-badge new">New</div>
             <div *ngIf="course.completionRate > 70" class="status-badge popular">Popular</div>
-            <div class="duration-badge">{{ course.duration }}h</div>
+            <div class="duration-badge">{{ course.carga_horaria_horas }}h</div>
           </div>
           <div class="card-info">
-            <h3>{{ course.title }}</h3>
-            <p class="description">{{ course.description }}</p>
+            <h3>{{ course.titulo }}</h3>
+            <p class="description">{{ course.descricao }}</p>
             <div class="card-meta">
-              <span class="modules">{{ course.modules }} modules</span>
+              <span class="modules">{{ course.courseModules.length }} modules</span>
             </div>
             <button class="start-btn">Start Course</button>
           </div>
